@@ -1,7 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -26,40 +26,37 @@ serve(async (req) => {
     const { child_name, age, wish_list } = await req.json();
     console.log('Processing request for:', { child_name, age, wish_list });
 
-    if (!openAIApiKey) {
-      throw new Error('OpenAI API key is not configured');
+    if (!anthropicApiKey) {
+      throw new Error('Anthropic API key is not configured');
     }
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
+        'x-api-key': anthropicApiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-3.5-turbo', // More cost-effective model
+        model: 'claude-3-sonnet-20240229',
+        max_tokens: 1000,
         messages: [
           {
-            role: 'system',
-            content: 'You are Santa Claus writing a warm, personalized letter to a child. Keep the tone magical, encouraging, and appropriate for their age. Include mentions of the North Pole, reindeer, and elves. Acknowledge their wishes without making specific promises.'
-          },
-          {
             role: 'user',
-            content: `Write a letter to ${child_name} who is ${age} years old. Their wish list includes: ${wish_list}. Make it personal, warm, and magical. Keep it under 300 words.`
+            content: `Write a warm, personalized letter from Santa Claus to ${child_name} who is ${age} years old. Their wish list includes: ${wish_list}. Make it personal, encouraging, and magical. Include mentions of the North Pole, reindeer, and elves. Keep it under 300 words.`
           }
-        ],
-        max_tokens: 300, // Limit token usage
+        ]
       }),
     });
 
     const data = await response.json();
-    console.log('OpenAI API response status:', response.status);
+    console.log('Anthropic API response status:', response.status);
 
     if (!response.ok) {
-      throw new Error(`OpenAI API error: ${data.error?.message || 'Unknown error'}`);
+      throw new Error(`Anthropic API error: ${data.error?.message || 'Unknown error'}`);
     }
 
-    const letter = data.choices[0].message.content;
+    const letter = data.content[0].text;
 
     return new Response(
       JSON.stringify({ letter }),
