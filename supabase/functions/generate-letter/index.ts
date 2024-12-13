@@ -1,86 +1,68 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { Configuration, OpenAIApi } from 'https://esm.sh/openai@3.1.0'
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
+const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+};
 
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { child_name, age, wish_list } = await req.json()
+    const { child_name, age, wish_list } = await req.json();
 
-    // Initialize OpenAI
-    const configuration = new Configuration({
-      apiKey: Deno.env.get('OPENAI_API_KEY'),
-    })
-    const openai = new OpenAIApi(configuration)
+    console.log('Generating letter for:', { child_name, age, wish_list });
 
-    // Create the prompt
-    const prompt = `Write a warm and magical letter from Santa Claus to ${child_name}, who is ${age} years old. 
-    Their wish list includes: ${wish_list}. 
-    Make it personal, encouraging, and mention the North Pole, reindeer, and elves. 
-    Don't promise specific gifts but acknowledge their wishes. 
-    Keep it under 300 words and make it festive!`
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are Santa Claus writing a warm, personalized letter to a child. Keep the tone magical, encouraging, and appropriate for their age. Include mentions of the North Pole, reindeer, and elves. Acknowledge their wishes without making specific promises.'
+          },
+          {
+            role: 'user',
+            content: `Write a letter to ${child_name} who is ${age} years old. Their wish list includes: ${wish_list}. Make it personal, warm, and magical. Keep it under 300 words.`
+          }
+        ],
+      }),
+    });
 
-    const completion = await openai.createChatCompletion({
-      model: "gpt-4",
-      messages: [
-        {
-          role: "system",
-          content: "You are Santa Claus writing a personal letter to a child. Be warm, encouraging, and magical."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-    })
+    const data = await response.json();
+    console.log('OpenAI API response:', data);
 
-    const generatedLetter = completion.data.choices[0].message?.content || ''
+    if (data.error) {
+      throw new Error(data.error.message || 'Error generating letter');
+    }
 
-    // Initialize Supabase client
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
-
-    // Store the letter in the database
-    const { data, error } = await supabaseClient
-      .from('santa_letters')
-      .insert([
-        {
-          child_name,
-          age: parseInt(age),
-          wish_list,
-          generated_letter: generatedLetter
-        }
-      ])
-      .select()
-
-    if (error) throw error
+    const letter = data.choices[0].message.content;
 
     return new Response(
-      JSON.stringify({ letter: generatedLetter }),
+      JSON.stringify({ letter }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
       },
-    )
+    );
   } catch (error) {
-    console.error('Error:', error)
+    console.error('Error in generate-letter function:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       },
-    )
+    );
   }
-})
+});
