@@ -37,7 +37,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-3.5-turbo', // More cost-effective model
         messages: [
           {
             role: 'system',
@@ -48,6 +48,7 @@ serve(async (req) => {
             content: `Write a letter to ${child_name} who is ${age} years old. Their wish list includes: ${wish_list}. Make it personal, warm, and magical. Keep it under 300 words.`
           }
         ],
+        max_tokens: 300, // Limit token usage
       }),
     });
 
