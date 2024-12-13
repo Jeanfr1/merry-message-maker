@@ -51,9 +51,26 @@ serve(async (req) => {
 
     const data = await response.json();
     console.log('Anthropic API response status:', response.status);
+    console.log('Full API response:', JSON.stringify(data));
 
     if (!response.ok) {
-      throw new Error(`Anthropic API error: ${data.error?.message || 'Unknown error'}`);
+      // Enhanced error handling
+      const errorMessage = data.error?.message || 'Unknown Anthropic API error';
+      console.error('Detailed API Error:', errorMessage);
+      
+      // Fallback letter generation
+      const fallbackLetter = `Dear ${child_name},\n\nGreetings from the North Pole! Santa and his elves are working hard this holiday season. While I can't promise everything on your wish list, I hope the magic of Christmas brings you joy and happiness.\n\nWarmly,\nSanta Claus`;
+      
+      return new Response(
+        JSON.stringify({ 
+          letter: fallbackLetter,
+          error: errorMessage 
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200  // Return 200 to prevent client-side error
+        },
+      );
     }
 
     const letter = data.content[0].text;
