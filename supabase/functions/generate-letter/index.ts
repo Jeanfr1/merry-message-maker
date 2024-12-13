@@ -5,19 +5,30 @@ const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Max-Age': '86400',
 };
 
 serve(async (req) => {
+  console.log('Received request:', req.method);
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    console.log('Handling CORS preflight request');
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders
+    });
   }
 
   try {
     const { child_name, age, wish_list } = await req.json();
+    console.log('Processing request for:', { child_name, age, wish_list });
 
-    console.log('Generating letter for:', { child_name, age, wish_list });
+    if (!openAIApiKey) {
+      throw new Error('OpenAI API key is not configured');
+    }
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -41,10 +52,10 @@ serve(async (req) => {
     });
 
     const data = await response.json();
-    console.log('OpenAI API response:', data);
+    console.log('OpenAI API response status:', response.status);
 
-    if (data.error) {
-      throw new Error(data.error.message || 'Error generating letter');
+    if (!response.ok) {
+      throw new Error(`OpenAI API error: ${data.error?.message || 'Unknown error'}`);
     }
 
     const letter = data.choices[0].message.content;
@@ -58,7 +69,10 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in generate-letter function:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        details: error.stack
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
