@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import LetterForm from "@/components/LetterForm";
 import LetterPreview from "@/components/LetterPreview";
-import Snowfall from "@/components/Snowfall";
+import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 
 const Index = () => {
@@ -16,35 +16,26 @@ const Index = () => {
   }) => {
     setIsLoading(true);
     try {
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4o",
-          messages: [
-            {
-              role: "system",
-              content:
-                "You are Santa Claus writing a personalized letter to a child. Keep the tone warm, magical, and encouraging. Include specific details about their wish list but don't promise specific gifts. Mention the North Pole, reindeer, and elves. Keep it under 300 words.",
-            },
-            {
-              role: "user",
-              content: `Write a letter to ${data.childName} who is ${data.age} years old. Their wish list includes: ${data.wishList}`,
-            },
-          ],
-        }),
+      const { data: response, error } = await supabase.functions.invoke(
+        "generate-letter",
+        {
+          body: {
+            child_name: data.childName,
+            age: data.age,
+            wish_list: data.wishList,
+          },
+        }
+      );
+
+      if (error) throw error;
+
+      setLetter(response.letter);
+      toast({
+        title: "Letter Generated!",
+        description: "Your magical letter from Santa is ready!",
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to generate letter");
-      }
-
-      const result = await response.json();
-      setLetter(result.choices[0].message.content);
     } catch (error) {
+      console.error("Error:", error);
       toast({
         title: "Error",
         description: "Failed to generate letter. Please try again.",
@@ -57,7 +48,6 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-christmas-pine to-christmas-green py-12 px-4 relative">
-      <Snowfall />
       <div className="max-w-4xl mx-auto">
         <h1 className="text-5xl font-bold text-christmas-snow text-center mb-8">
           Letters from Santa
